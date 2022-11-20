@@ -1,97 +1,55 @@
 // arg data for ops
 // type 0, int
 // type 1, address (2-byte int) (if parseInt does not work, it will be classified as label)
-const REGISTERS = {
-    "AX":"AC",
-    "AC":"AC",
-    "BX":"XR",
-    "XR":"XR",
-    "CX":"YR",
-    "YR":"YR",
-};
-const COMMAND_ALIASES = {
-    PUSH(...arguments){
-        return `PUSH${REGISTERS[arguments[0].toUpperCase()][0]}`;
-    },
-    POP(...arguments){
-        return `POP${REGISTERS[arguments[0].toUpperCase()][0]}`;
-    },
-    ADD(...arguments){
-        return `AD${REGISTERS[arguments[0].toUpperCase()][0]}`;
-    },
-    SUB(...arguments){
-        return `SU${REGISTERS[arguments[0].toUpperCase()][0]}`;
-    },
-    LDR(...arguments){
-        return `LD${REGISTERS[arguments[0].toUpperCase()][0]} ${arguments[1]}`;
-    },
-    STR(...arguments){
-        return `ST${REGISTERS[arguments[0].toUpperCase()][0]} ${arguments[1]}`;
-    },
-    NAND(...arguments){
-        return `NAN${REGISTERS[arguments[0].toUpperCase()][0]}`;
-    },
-    CMP(...arguments){
-        return `CM${REGISTERS[arguments[0].toUpperCase()][0]}`;
-    }
-};
-COMMAND_ALIASES.LD = COMMAND_ALIASES.LDR;
-COMMAND_ALIASES.ST = COMMAND_ALIASES.STR;
-Object.freeze(COMMAND_ALIASES);
+// type 2, register
 const OPMODELS = {
     HLT: [],
     NOP: [],
-    LDA: [1],
-    LDX: [1],
-    LDY: [1],
-    STA: [1],
-    STX: [1],
-    STY: [1],
-    ADA: [],
-    ADX: [],
-    ADY: [],
-    SUA: [],
-    SUX: [],
-    SUY: [],
-    NANA: [],
-    NANX: [],
-    NANY: [],
-    PUSHA: [],
-    PUSHX: [],
-    PUSHY: [],
-    POPA: [],
-    POPX: [],
-    POPY: [],
-    CMA: [],
-    CMX: [],
-    CMY: [],
+    LDR: [2,1],
+    STR: [2,1],
+    MOV: [2,2],
+    ADD: [2],
+    SUB: [2],
+    LSH: [0],
+    RSH: [0],
+    NOT: [],
+    OR: [2],
+    AND: [2],
+    XOR: [2],
+    PUSH: [2],
+    POP: [2],
     JMP: [1],
-    JZ: [1],
-    JC: [1],
-    JNZ: [1],
-    JNC: [1],
     CALL: [1],
     RET: [],
-    INT: [0,0],
-    RETI: [],
+    CMP: [2],
+    JZ: [1],
+    JNZ: [1],
+    JC: [1],
+    JNC: [1],
+    JN: [],
+    JNN: [],
+    JV: [],
+    JNV: [],
+    INC: [2],
+    DEC: [2],
+    MOVV: [0,2],
+    JMPR: [2],
     CCF: [],
     CZF: [],
-    CIF: [],
-    SCF: [],
-    SZF: [],
-    SIF: []
+    CNF: [],
+    CVF: []
 };
 
 const toCharCode = str => Array.of(...str).map(s => s.charCodeAt(0));
-function asm2code(str,offset){
+function asm2code(str){
     const markedAddresses = {};
     const labelsAddresses = {};
     const lines = str.split("\n");
     const code = [];
     for(let i=0;i<lines.length;i++){
-        const line = lines[i].replace(/;.{0,}/i, "").trimEnd(); // trimEnd removes blank space
+        const line = lines[i].replace(/;.{0,}/i, "").trimEnd(); // trimEnd removes \r
         if(/.{0,}:/i.test(line)){
-            labelsAddresses[line.substring(0,line.length-1)] = offset + code.length;
+            labelsAddresses[line.substring(0,line.length-1)] = 0x0800 + code.length;
             continue;
         }
         const splitted = line.split(" ");
@@ -105,6 +63,7 @@ function asm2code(str,offset){
             for(let i=0;i<argsSplitted.length;i++){
                 const startTrimmed = argsSplitted[i].trimStart();
                 const endTrimmed = argsSplitted[i].trimEnd();
+                console.log(startTrimmed, endTrimmed);
                 if(startTrimmed[0] == "\"" && endTrimmed[endTrimmed.length-1] == "\""){
                     code.push(...toCharCode(JSON.parse(argsSplitted[i].trim())));
                 }else if(startTrimmed[0] == "\""){
@@ -124,30 +83,23 @@ function asm2code(str,offset){
             }
             continue;
         }
-        let line2 = line;
-        if(COMMAND_ALIASES[op])
-            line2 = COMMAND_ALIASES[op](...argsSplitted);
-        const splitted2 = line2.split(" ");
-        const op2 = splitted2.shift().toUpperCase();
-        const args2 = splitted2.join(" ");
-        const argsSplitted2 = args2.split(",");
-        
-        const model = OPMODELS[op2];
-        if(!model) throw new SyntaxError(`${op2} ${i+1}`);
-        code.push(COMMAND_NAME.indexOf(op2));
+        const model = OPMODELS[op];
+        if(!model) throw new SyntaxError(`${op} ${i+1}`);
+        code.push(OPCODES[op]);
         
         for(let j=0;j<model.length;j++){
             const type = model[j];
             if(!type)
-                code.push(parseInt(argsSplitted2[j]) & 0xFF);
+                code.push(parseInt(argsSplitted[j]) & 0xFF);
             else if(type == 1){
-                if(parseInt(argsSplitted2[j]))
-                    code.push((parseInt(argsSplitted2[j]) & 0xFF00) >> 8, parseInt(argsSplitted2[j]) & 0xFF);
+                if(parseInt(argsSplitted[j]))
+                    code.push((parseInt(argsSplitted[j]) & 0xFF00) >> 8, parseInt(argsSplitted[j]) & 0xFF);
                 else{
-                    markedAddresses[code.length] = [argsSplitted2[j], i];
+                    markedAddresses[code.length] = [argsSplitted[j], i];
                     code.push(0,0);
                 }
-            }
+            }else if(type == 2)
+                code.push(REGISTERS[argsSplitted[j].trim().toUpperCase()]);
         }
     }
     for(const address in markedAddresses){
@@ -160,6 +112,3 @@ function asm2code(str,offset){
     }
     return code;
 }
-
-if(!this.window)
-    module.exports = {asm2code, REGISTERS, COMMAND_ALIASES, OPMODELS}

@@ -1,4 +1,4 @@
-Atom processor
+Atom processor (OLD VERSION) (before, the processor was called KAL RISC500)
 ====================
 
 A RISC processor

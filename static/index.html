@@ -3,25 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>TeamCM - Atom Microprocessor</title>
-    <meta property="og:title" content="TeamCM - Atom Microprocessor">
-    <meta property="og:description" content="Emulator for Atom Microprocessor">
+    <title>KAL RISC500 Emulator - KAL</title>
+    <meta property="og:title" content="KAL RISC500 Emulator - KAL">
+    <meta property="og:description" content="Emulator for KAL RISC500">
     <link rel="stylesheet" data-name="vs/editor/editor.main" href="/vs/editor/editor.main.css">
     <script src="components.js"></script>
     <script src="processor.js"></script>
     <script src="compiler.js"></script>
-    <link rel="stylesheet" href="/site.css">
+    <style>
+        html,body{
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+        }
+        #code{
+            width: 100%;
+            height: 300px;
+            border: 1px #000 solid;
+        }
+        #registers tr *{
+            border: 1px solid #000;
+            padding: 4px;
+            margin: 0;
+            text-align: center;
+            width: 30px;
+        }
+        #sregs tr *{
+            border: 1px solid #000;
+            padding: 4px;
+            margin: 0;
+            text-align: center;
+            width: 40px;
+        }
+        #ram-viewer *{
+            text-align: center;
+            border: 1px solid #000;
+            padding: 2px;
+            width: 30px;
+            height: 30px;
+        }
+        #stack *{
+            text-align: center;
+            border: 1px solid #000;
+            padding: 2px;
+            width: 80px;
+            height: 30px;
+        }
+        #download{
+            display: none;
+        }
+        input[type="file"]{
+            display: none;
+        }
+    </style>
 </head>
 <body>
-    <a id="download" download="code.aasm"></a>
+    <a id="download" download="code.kasm"></a>
     <div id="code"></div>
     <input type="file">
     <button onclick="compile_str();">Compile</button>
-    <button onclick="makeStep()">Step</button>
-    <input type="number" id="interval" placeholder="Interval timeout in MS" min="0" max="5000" value="1">
-    <input type="number" id="stepTimes" placeholder="CPU steps before actually updating" min="1" value="1">
-    <button onclick="intervalStep();">Interval Step</button>
-    <button onclick="intervalClear();">Stop Interval</button>
+    <button onclick="run()">Run</button>
+    <button onclick="makeStep()">Clock</button>
+    <button onclick="makeFullStep()">Step</button>
+    <input type="number" id="interval" placeholder="Interval timeout in MS" min="0" max="5000">
+    <button onclick="intervalStep();">Interval Clock</button>
+    <button onclick="intervalClear();">Stop Interval Clock</button>
     <button onclick="reset()">Reset</button>
     <br>
     <button onclick="downloadCode()">Download code</button>
@@ -31,30 +79,19 @@
     <button onclick="uploadCode()">Upload source code</button>
     <button onclick="uploadBin()">Upload ROM</button>
     <br>
-    <a href="/docs.html">Docs</a>
-    <noscript>Activate javascript to use the emulator</noscript>
-    <br>
-    <input type="checkbox" id="noUpdateInfo">
-    <label for="updateInfo">Don't update information (ip, special registers, registers, etc)</label>
-    <br>
     <input type="checkbox" id="noUpdateMemory">
     <label for="noUpdateStack">Don't update memory</label>
-    <br>
     <input type="checkbox" id="noUpdateStack"> <!-- my laptop is like, AUUUUGH -->
     <label for="noUpdateStack">Don't update stack</label>
-    <br>
-    <br>
-    <input type="checkbox" id="followSection0">
-    <label for="followSection0">Follow section 0</label>
     <div id="screen"></div>
     <p id="status"></p>
     <table id="registers">
         <tr>
-            <th title="Accumulator">AC</th>
-            <th title="X Register">XR</th>
-            <th title="Y Register">YR</th>
-            <th title="Stack Pointer">SP</th>
-            <th title="Status Register">STATUS</th>
+            <th>AX</th>
+            <th>BX</th>
+            <th>CX</th>
+            <th>DX</th>
+            <th>SP</th>
         </tr>
         <tr id="rvalues">
             <td>0</td>
@@ -66,11 +103,13 @@
     </table>
     <table id="sregs">
         <tr>
-            <th title="Interrupt Flag">IF</th>
-            <th title="Zero Flag">ZF</th>
-            <th title="Carry Flag">CF</th>
+            <th>ZF</th>
+            <th>CF</th>
+            <th>NF</th>
+            <th>VF</th>
         </tr>
         <tr id="srvalues">
+            <td>false</td>
             <td>false</td>
             <td>false</td>
             <td>false</td>

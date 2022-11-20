@@ -1,427 +1,381 @@
-const COMMAND_NAME = ["HLT","NOP","LDA","LDX","LDY","STA","STX","STY","ADA","ADX","ADY","SUA","SUX","SUY","NANA","NANX","NANY","PUSHA","PUSHX","PUSHY","POPA","POPX","POPY","CMA","CMX","CMY","JMP","JZ","JC","JNZ","JNC","CALL","RET","INT","RETI","CZF","CCF","CIF","SZF","SCF","SIF"];
-const FLAGS = {
-    CF: 0b1,
-    ZF: 0b10,
-    IF: 0b100
+const OPCODES = {
+    HLT: 0,
+    NOP: 1,
+    LDR: 2,
+    STR: 3,
+    MOV: 4,
+    ADD: 5,
+    SUB: 6,
+    LSH: 7,
+    RSH: 8,
+    NOT: 9,
+    OR: 10,
+    AND: 11,
+    XOR: 12,
+    PUSH: 13,
+    POP: 14,
+    JMP: 15,
+    CALL: 16,
+    RET: 17,
+    CMP: 18,
+    JZ: 19,
+    JNZ: 20,
+    JC: 21,
+    JNC: 22,
+    JN: 23,
+    JNN: 24,
+    JV: 25,
+    JNV: 26,
+    INC: 27,
+    DEC: 28,
+    MOVV: 29,
+    JMPR: 30,
+    CCF: 31,
+    CZF: 32,
+    CNF: 34,
+    CVF: 35
 };
-Object.freeze(FLAGS);
-// ret works on int
-const COMMANDS = {
-    HLT(cpu){cpu.halted = true;},
+const REGISTERS = {
+    AX: 0,
+    BX: 1,
+    CX: 2,
+    DX: 3,
+    SP: 4
+};
+const registers = new Uint8Array(Object.keys(REGISTERS).length);
+
+const sregisters = {
+    zf: false,
+    cf: false,
+    nf: false,
+    vf: false
+};
+const char = code => String.fromCharCode(code);
+const OPCYCLES = {
+    HLT: 1,
+    LDR: 10,
+    STR: 9,
+    MOV: 6,
+    ADD: 19,
+    SUB: 22,
+    LSH: 6,
+    RSH: 6,
+    NOT: 5,
+    OR: 7,
+    AND: 7,
+    XOR: 7,
+    PUSH: 8,
+    POP: 7,
+    JMP: 7,
+    CALL: 19,
+    RET: 13,
+    CMP: 19,
+    JZ: 7,
+    JNZ: 7,
+    JC: 7,
+    JNC: 7,
+    JN: 7,
+    JNN: 7,
+    JV: 7,
+    JNV: 7,
+    INC: 7,
+    DEC: 6,
+    MOVV: 5,
+    JMPR: 4,
+    CCF: 1,
+    CZF: 1,
+    CNF: 1,
+    CVF: 1
+}
+const commands = {
+    HLT(cpu){cpu.halted = true;;},
     NOP(){},
-    LDA(cpu){
-        const target = 0;
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const addr =  realPart1 | part2; // 1 cycle
-        cpu.registers[target] = cpu.bus.read(addr); // 2 cycles
+    LDR(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let register_ldr = cpu.getRegister(reg_byte);
+        registers[register_ldr] = bus.read((mbyte << 8) | lbyte);
+        cpu.cycles-=4;
     },
-    LDX(cpu){
-        const target = 1;
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const addr =  realPart1 | part2; // 1 cycle
-        cpu.registers[target] = cpu.bus.read(addr); // 2 cycles
+    STR(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let register_save = cpu.getRegister(reg_byte);
+        bus.write((mbyte << 8) | lbyte, register_save);
     },
-    LDY(cpu){
-        const target = 2;
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const addr =  realPart1 | part2; // 1 cycle
-        cpu.registers[target] = cpu.bus.read(addr); // 2 cycles
+    MOV(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        let reg_byte2 = bus.read(cpu.ip);
+        cpu.ip++;
+        let register1 = cpu.getRegister(reg_byte);
+        let register2 = cpu.getRegister(reg_byte2);
+        registers[register2] = registers[register1];
     },
-    STA(cpu){
-        const target = 0;
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const addr =  realPart1 | part2; // 1 cycle
-        cpu.bus.write(addr, cpu.registers[target]); // 2 cycles
+    ADD(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        let register_add = cpu.getRegister(reg_byte);
+        let result = registers[0] + registers[register_add] + sregisters.cf;
+        if(result > 255) sregisters.cf = true;
+        if(result == 0) sregisters.zf = true;
+        if(result & 0x80) sregisters.nf = true;
+        if((registers[0] ^ result)&(~(registers[0] ^ registers[register_add]))) sregisters.vf = true;
+        registers[0] = result;
     },
-    STX(cpu){
-        const target = 1;
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const addr =  realPart1 | part2; // 1 cycle
-        cpu.bus.write(addr, cpu.registers[target]); // 2 cycles
+    SUB(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        let register_sub = cpu.getRegister(reg_byte);
+        let value  = registers[register_sub] ^ 0x00FF;
+        let result = registers[0] + value + !sregisters.cf;
+        cpu.cycles-=4;
+        if(result > 255) sregisters.cf = true;
+        if(result == 0) sregisters.zf = true;
+        if(result & 0x80) sregisters.nf = true;
+        if((registers[0] ^ result)&(~(registers[0] ^ registers[register_sub]))) sregisters.vf = true;
+        cpu.cycles-=7;
+        registers[0] = result;
     },
-    STY(cpu){
-        const target = 2;
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const addr =  realPart1 | part2; // 1 cycle
-        cpu.bus.write(addr, cpu.registers[target]); // 2 cycles
+    LSH(cpu,bus){
+        let int = bus.read(cpu.ip);
+        cpu.ip++;
+        registers[0] <<= int;
+        if(registers[0] == 0) sregisters.zf = true;
     },
-    ADA(cpu){
-        const target = 0;
-        const val = cpu.registers[0] + cpu.registers[target] + cpu.getFlag(FLAGS.CF); // 5 cycles
-        cpu.setFlag(FLAGS.CF, cpu.getFlag(FLAGS.CF) || val > 255);
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
-        cpu.registers[0] = val; // 1 cycle
+    RSH(cpu, bus){
+        let int = bus.read(cpu.ip);
+        cpu.ip++;
+        registers[0] >>= int;
+        if(registers[0] == 0) sregisters.zf = true;
     },
-    ADX(cpu){
-        const target = 1;
-        const val = cpu.registers[0] + cpu.registers[target] + cpu.getFlag(FLAGS.CF); // 5 cycles
-        cpu.setFlag(FLAGS.CF, cpu.getFlag(FLAGS.CF) || val > 255);
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
-        cpu.registers[0] = val; // 1 cycle
+    NOT(){
+        registers[0] = ~registers[0];
+        if(registers[0] == 0) sregisters.zf = true;
     },
-    ADY(cpu){
-        const target = 2;
-        const val = cpu.registers[0] + cpu.registers[target] + cpu.getFlag(FLAGS.CF); // 5 cycles
-        cpu.setFlag(FLAGS.CF, cpu.getFlag(FLAGS.CF) || val > 255);
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
-        cpu.registers[0] = val; // 1 cycle
+    OR(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        let register_or = cpu.getRegister(reg_byte);
+        registers[0] = registers[0] | registers[register_or];
+        if(registers[0] == 0) sregisters.zf = true;
     },
-    SUA(cpu){
-        const target = 0;
-        const val = cpu.registers[0] + (cpu.registers[target] ^ 255) + !cpu.getFlag(FLAGS.CF) // 6 cycles
-        cpu.setFlag(FLAGS.CF, cpu.getFlag(FLAGS.CF) || val > 255);
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
-        cpu.registers[0] = val; // 1 cycle
+    AND(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        let register_and = cpu.getRegister(reg_byte);
+        registers[0] = registers[0] & registers[register_and];
+        if(registers[0] == 0) sregisters.zf = true;
     },
-    SUX(cpu){
-        const target = 1;
-        const val = cpu.registers[0] + (cpu.registers[target] ^ 255) + !cpu.getFlag(FLAGS.CF) // 6 cycles
-        cpu.setFlag(FLAGS.CF, cpu.getFlag(FLAGS.CF) || val > 255);
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
-        cpu.registers[0] = val; // 1 cycle
+    XOR(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        let register_xor = cpu.getRegister(reg_byte);
+        registers[0] = registers[0] ^ registers[register_xor];
+        if(registers[0] == 0) sregisters.zf = true;
     },
-    SUY(cpu){
-        const target = 2;
-        const val = cpu.registers[0] + (cpu.registers[target] ^ 255) + !cpu.getFlag(FLAGS.CF) // 6 cycles
-        cpu.setFlag(FLAGS.CF, cpu.getFlag(FLAGS.CF) || val > 255);
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
-        cpu.registers[0] = val; // 1 cycle
+    PUSH(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        bus.write(registers[4], registers[cpu.getRegister(reg_byte)]);
+        registers[4]--;
     },
-    NANA(cpu){
-        const target = 0;
-        const val = (cpu.registers[0] & cpu.registers[target])^255; // 4 cycles
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
-        cpu.registers[0] = val; // 1 cycle
+    POP(cpu,bus){
+        let reg_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        registers[4]++;
+        let val = bus.read(registers[4]);
+        registers[cpu.getRegister(reg_byte)] = val;
     },
-    NANX(cpu){
-        const target = 1;
-        const val = (cpu.registers[0] & cpu.registers[target])^255; // 4 cycles
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
-        cpu.registers[0] = val; // 1 cycle
+    JMP(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let addr_to = (mbyte << 8) | lbyte;
+        cpu.ip = addr_to;
     },
-    NANY(cpu){
-        const target = 2;
-        const val = (cpu.registers[0] & cpu.registers[target])^255; // 4 cycles
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
-        cpu.registers[0] = val; // 1 cycle
+    CALL(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let addr_to2 = (mbyte << 8) | lbyte;
+        bus.write(registers[4], (cpu.ip & 0xFF00) >> 8);
+        registers[4]--;
+        bus.write(registers[4], cpu.ip & 0xFF);
+        registers[4]--;
+        cpu.ip = addr_to2;
     },
-    PUSHA(cpu){
-        const target = 0;
-        cpu.bus.write(cpu.registers[3], cpu.registers[target]); // 3 cycles
-        cpu.registers[3]--; // 1 cycle
+    RET(cpu,bus){
+        registers[4]++;
+        let addr_val = bus.read(registers[4]);
+        registers[4]++;
+        let sec = bus.read(registers[4]);
+        cpu.ip = (sec << 8) | addr_val;
     },
-    PUSHX(cpu){
-        const target = 1;
-        cpu.bus.write(cpu.registers[3], cpu.registers[target]); // 3 cycles
-        cpu.registers[3]--; // 1 cycle
+    CMP(cpu,bus){
+        let reg_sub_byte = bus.read(cpu.ip);
+        cpu.ip++;
+        let register_sub = cpu.getRegister(reg_sub_byte);
+        let value  = registers[register_sub] ^ 0x00FF;
+        let result = registers[0] + value + !sregisters.cf;
+        cpu.cycles-=4;
+        if(result > 255) sregisters.cf = true;
+        if((result & 0xFF) == 0) sregisters.zf = true;
+        if(result & 0x80) sregisters.nf = true;
+        if((registers[0] ^ result)&(~(registers[0] ^ registers[register_sub]))) sregisters.vf = true;
+        cpu.cycles-=7;
     },
-    PUSHY(cpu){
-        const target = 2;
-        cpu.bus.write(cpu.registers[3], cpu.registers[target]); // 3 cycles
-        cpu.registers[3]--; // 1 cycle
+    JZ(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let jzip = (mbyte << 8) | lbyte;
+        if(sregisters.zf){cpu.ip = jzip;}
+        return 1;
     },
-    POPA(cpu){
-        const target = 0;
-        cpu.registers[3]++; // 1 cycle
-        cpu.registers[target] = cpu.bus.read(cpu.registers[3]); // 3 cycle
+    JNZ(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let jnzip = (mbyte << 8) | lbyte;
+        if(!sregisters.zf){cpu.ip = jnzip;}
+        return 1;
     },
-    POPX(cpu){
-        const target = 1;
-        cpu.registers[3]++; // 1 cycle
-        cpu.registers[target] = cpu.bus.read(cpu.registers[3]); // 3 cycle
+    JC(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let jcip = (mbyte << 8) | lbyte;
+        if(sregisters.cf){cpu.ip = jcip;}
+        return 1;
     },
-    POPY(cpu){
-        const target = 2;
-        cpu.registers[3]++; // 1 cycle
-        cpu.registers[target] = cpu.bus.read(cpu.registers[3]); // 3 cycle
+    JNC(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let jncip = (mbyte << 8) | lbyte;
+        if(!sregisters.cf){cpu.ip = jncip;}
     },
-    CMA(cpu){
-        const target = 0;
-        const val = cpu.registers[0] + (cpu.registers[target] ^ 255) + !cpu.getFlag(FLAGS.CF) // 6 cycles
-        cpu.setFlag(FLAGS.CF, cpu.getFlag(FLAGS.CF) || val > 255);
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
+    JN(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let jncip = (mbyte << 8) | lbyte;
+        if(sregisters.nf){cpu.ip = jncip;}
+        return 1;
     },
-    CMX(cpu){
-        const target = 1;
-        const val = cpu.registers[0] + (cpu.registers[target] ^ 255) + !cpu.getFlag(FLAGS.CF) // 6 cycles
-        cpu.setFlag(FLAGS.CF, cpu.getFlag(FLAGS.CF) || val > 255);
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
+    JNN(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let jncip = (mbyte << 8) | lbyte;
+        if(!sregisters.nf){cpu.ip = jncip;}
     },
-    CMY(cpu){
-        const target = 2;
-        const val = cpu.registers[0] + (cpu.registers[target] ^ 255) + !cpu.getFlag(FLAGS.CF) // 6 cycles
-        cpu.setFlag(FLAGS.CF, cpu.getFlag(FLAGS.CF) || val > 255);
-        cpu.setFlag(FLAGS.ZF, cpu.getFlag(FLAGS.ZF) || ((val % 256) === 0));
+    JV(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let jncip = (mbyte << 8) | lbyte;
+        if(sregisters.vf){cpu.ip = jncip;}
     },
-    JMP(cpu){
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const newIp =  realPart1 | part2; // 1 cycle
-        cpu.ip = newIp; // 1 cycle
+    JNV(cpu,bus){
+        let mbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let lbyte = bus.read(cpu.ip);
+        cpu.ip++;
+        let jncip = (mbyte << 8) | lbyte;
+        if(!sregisters.vf){cpu.ip = jncip;}
+        return 1;
     },
-    JZ(cpu){
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const newIp =  realPart1 | part2; // 1 cycle
-        if(cpu.getFlag(FLAGS.ZF)) cpu.ip = newIp; // 1 cycle
+    INC(cpu,bus){
+        let reg_inc = cpu.getRegister(bus.read(cpu.ip));
+        cpu.ip++;
+        registers[reg_inc]++;
+        if(registers[reg_inc] == 0)sregisters.zf = true;
     },
-    JC(cpu){
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const newIp =  realPart1 | part2; // 1 cycle
-        if(cpu.getFlag(FLAGS.CF)) cpu.ip = newIp; // 1 cycle
+    DEC(cpu,bus){
+        let reg_inc = cpu.getRegister(bus.read(cpu.ip));
+        cpu.ip++;
+        let reg_dec = cpu.getRegister(reg_inc);
+        registers[reg_dec]--;
+        if(registers[reg_dec] == 0) sregisters.zf = true;
     },
-    JNZ(cpu){
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const newIp =  realPart1 | part2; // 1 cycle
-        if(!cpu.getFlag(FLAGS.ZF)) cpu.ip = newIp; // 1 cycle
+    MOVV(cpu,bus){
+        let rval = bus.read(cpu.ip);
+        cpu.ip++
+        let regval = bus.read(cpu.ip);
+        cpu.ip++
+        let reg = cpu.getRegister(regval);
+        registers[reg] = rval;
     },
-    JNC(cpu){
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const newIp =  realPart1 | part2; // 1 cycle
-        if(!cpu.getFlag(FLAGS.CF)) cpu.ip = newIp; // 1 cycle
+    JMPR(cpu,bus){
+        let rval = registers[cpu.getRegister(cpu.readFromBus(bus, cpu.ip))];
+        cpu.ip++; // necessary lol
+        cpu.ip = (cpu.readFromBus(rval, bus) << 8) | cpu.readFromBus(rval+1, bus), registers[register_save];
     },
-    CALL(cpu){
-        const part1 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-
-        const ip_part1 = cpu.ip >> 8; // 2 cycles
-        const ip_part2 = cpu.ip & 0xFF; // 2 cycles
-        cpu.bus.write(cpu.registers[3], ip_part1); // 3 cycles
-        cpu.registers[3]--; // 1 cycle
-        cpu.bus.write(cpu.registers[3], ip_part2); // 3 cycles
-        cpu.registers[3]--; // 1 cycle
-        
-        const realPart1 = part1 << 8; // 1 cycle
-        const newIp =  realPart1 | part2; // 1 cycle
-        cpu.ip = newIp; // 1 cycle
-    },
-    RET(cpu){
-        cpu.registers[3]++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.registers[3]); // 3 cycle
-        cpu.registers[3]++; // 1 cycle
-        const part1 = cpu.bus.read(cpu.registers[3]); // 3 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const newIp =  realPart1 | part2; // 1 cycle
-        cpu.ip = newIp; // 1 cycle
-    },
-    INT(cpu){
-        const num = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-        const arg = cpu.bus.read(cpu.ip); // 1 cycle
-        cpu.ip++; // 1 cycle
-
-        cpu.interrupt_request(num,arg);
-    },
-    RETI(){
-        cpu.registers[3]++; // 1 cycle
-        const part2 = cpu.bus.read(cpu.registers[3]); // 3 cycle
-        cpu.registers[3]++; // 1 cycle
-        const part1 = cpu.bus.read(cpu.registers[3]); // 3 cycle
-        const realPart1 = part1 << 8; // 1 cycle
-        const newIp =  realPart1 | part2; // 1 cycle
-
-        cpu.registers[3]++; // 1 cycle
-        const reg2 = cpu.bus.read(cpu.registers[3]); // 1 cycle
-
-        cpu.registers[2] = reg2; // 1 cycle
-
-        cpu.ip = newIp; // 1 cycle
-    },
-    CZF(cpu){
-        cpu.setFlag(FLAGS.ZF, false);
-    },
-    CCF(cpu){
-        cpu.setFlag(FLAGS.CF, false);
-    },
-    CIF(){
-        cpu.setFlag(FLAGS.IF, false);
-    },
-    SZF(cpu){
-        cpu.setFlag(FLAGS.ZF, true);
-    },
-    SCF(cpu){
-        cpu.setFlag(FLAGS.CF, true);
-    },
-    SIF(){
-        cpu.setFlag(FLAGS.IF, true);
-    }
+    CCF(){sregisters.cf = false;;},
+    CZF(){sregisters.zf = false;;},
+    CNF(){sregisters.nf = false;;},
+    CVF(){sregisters.vf = false;;}
 };
-class Processor extends EventTarget{
-    interrupt_start_address = 0
 
-    // maskable
-    maskable_interrupt_address = 0
-    // non-maskable
-    non_maskable_inerrupt_address = 0
-
-    registers = new Uint8Array(5);
-    sregisters = {
-        cf: false,
-        zf: false
-    };
-    /**
-     * The bus which data will be readed/writed
-     * @type {Bus}
-     */
-    bus
-    /**
-     * Instruction Pointer (aka program counter)
-     * @type {number}
-     */
-    ip = 0
-    /**
-     * Default instruction pointer will be used on `reset()`
-     * @type {number}
-     */
-    defaultIp = 0
-    /**
-     * Specifies if this Processor is halted or not
-     * @type {boolean}
-     */
+class CPU{
     halted = false
-    /**
-     * Resets the cpu
-     */
-    reset(){
+    getRegister(hex){
+        return hex;
+    }
+    reset(bus){
+        registers.fill(0);
+        registers[4] = registers[5] = 0xFF;
+        sregisters.vf = sregisters.nf = sregisters.zf = sregisters.cf = false;
+        this.ip = 2048;
+        bus.memory.fill(0);
         this.halted = false;
-        this.setFlag(FLAGS.CF, false);
-        this.setFlag(FLAGS.ZF, false);
-        this.setFlag(FLAGS.IF, true);
-        this.registers[0] = this.registers[1] = this.registers[2] = 0;
-        this.registers[3] = 255;
-        this.ip = this.defaultIp;
-        const event = new Event("update");
-        this.dispatchEvent(event);
-    }
-
-    /**
-     * @param {number} f
-     * @returns {number}
-     */
-    getFlag(f){
-        return this.registers[4] & f;
     }
     /**
-     * @param {number} f
-     * @param {boolean | number} v
+     * @argument {Bus} bus
      */
-    setFlag(f,v){
-        if(v)
-            this.registers[4] |= f;
-        else
-            this.registers[4] &= ~f;
-    }
-
-    interrupt_request(interruptType,argument){
-        if(cpu.getFlag(FLAGS.IF)){
-            cpu.bus.write(this.registers[3], this.registers[2]); // 3 cycles
-            this.registers[3]--; // 1 cycle
-
-            const ip_part1 = this.ip >> 8; // 2 cycles
-            const ip_part2 = this.ip & 0xFF; // 2 cycles
-            this.bus.write(this.registers[3], ip_part1); // 3 cycles
-            this.registers[3]--; // 1 cycle
-            this.bus.write(this.registers[3], ip_part2); // 3 cycles
-            this.registers[3]--; // 1 cycle
-
-            this.registers[0] = interruptType; // 1 cycle
-            this.registers[1] = argument; // 1 cycle
-
-            this.ip = this.maskable_interrupt_address; // 1 cycle
-            const event = new CustomEvent("interrupted");
-            this.dispatchEvent(event);
+    step(bus){
+        const command = this.fetchByte(bus);
+        //console.log(command, Object.entries(OPCODES).find(a => a[1] == command)[0]);
+        const fcommand = commands[Object.entries(OPCODES).find(a => a[1] == command)[0]];
+        if(fcommand) fcommand(this,bus);
+        else{
+            this.halted = true;
+            alert(`No opcode for ${command}`);
         }
+        this.programCounter++;
     }
-    non_maskable_interrupt(interruptType,argument){
-        cpu.bus.write(this.registers[3], this.registers[2]); // 3 cycles
-        this.registers[3]--; // 1 cycle
+    cycles = 0
+    clock(bus){
+        if(this.cycles == 0){
+            const opcode = bus.read(this.ip);
+            this.ip++;
+            // getting function and cycles is not really a clock cycle
+            const fcommand = commands[Object.entries(OPCODES).find(a => a[1] == opcode)[0]];
+            const cycles = OPCYCLES[Object.entries(OPCODES).find(a => a[1] == opcode)[0]];
 
-        const ip_part1 = this.ip >> 8; // 2 cycles
-        const ip_part2 = this.ip & 0xFF; // 2 cycles
-        this.bus.write(this.registers[3], ip_part1); // 3 cycles
-        this.registers[3]--; // 1 cycle
-        this.bus.write(this.registers[3], ip_part2); // 3 cycles
-        this.registers[3]--; // 1 cycle
-
-        this.registers[0] = interruptType; // 1 cycle
-        this.registers[1] = argument; // 1 cycle
-
-        this.ip = this.non_maskable_inerrupt_address; // 1 cycle
-        const event = new CustomEvent("interrupted");
-        this.dispatchEvent(event);
-    }
-
-    /**
-     * Fetch and execute a instruction
-     * @param {bool} noupdate Should emit `update` event
-     * @returns {bool}
-     */
-    step(noupdate){
-        if(this.halted) return false;
-        let command = this.bus.read(this.ip);
-        this.ip++;
-        /**
-         * @type {Function?}
-         */
-        const commandFunction = COMMANDS[COMMAND_NAME[command]];
-        commandFunction?.(this);
-        if(!commandFunction){
-            this.interrupt(0,command);
-            return false;
+            console.log(opcode, cycles);
+            this.cycles = cycles;
+            this.cycles += (fcommand(this,bus) || 0);
         }
-        const event = new Event("update");
-        if(!noupdate) this.dispatchEvent(event);
-        if(this.halted){
-            const halted = new Event("halted");
-            this.dispatchEvent(halted);
-        }
-        return true;
+        this.cycles--;
     }
 }
-
-if(!this.window)
-    module.exports = {COMMAND_NAME,COMMANDS,FLAGS,Processor};
