@@ -1,0 +1,13 @@
+{
+  "name": "kal-risc500",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.1",
+    "monaco-editor": "^0.33.0"
+  },
+  "optionalDependencies": {
+    "ascii-table": "^0.0.9"
+  }
+}

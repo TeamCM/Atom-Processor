@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeamCM - Atom Microprocessor - Docs</title>
+    <meta property="og:title" content="TeamCM - Atom Microprocessor - Docs">
+    <meta property="og:description" content="(Mini) Documentation for Atom Microprocessor">
+    <style>
+        html,body{
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <h2>OP Codes:</h2>
+    <p>Each op code is defined as: OPCODE - NAME - DESCRIPTION</p>
+    <noscript>
+        To see opcodes list, activate javascript (im lazy to add one by one)
+    </noscript>
+    <ul id="opcodes">
+    </ul>
+    <h2>Registers:</h2>
+    <ul>
+        <li>AC (Accumulator)</li>
+        <li>XR (X register)</li>
+        <li>YR (Y register)</li>
+        <li>SP (Stack Pointer register, 8 bit, decreased each push and increased each pop, default value = 255)</li>
+        <li>STATUS (Status register)</li>
+    </ul>
+    <h2>Flags:</h2>
+    <p>Carry flag (1 << 0), if the byte surpasses the 8 bit value, the value is set to true. (in subtraction/comparation, if the value in accumulator is higher or equal than the second argument (the value in a specified register), carry flag is set, example: 10 - 8, 10 is higher or equal than 8, so set carry flag)</p>
+    <p>Zero flag (1 << 1), if the result of a logic instruction is 0, set to true</p>
+    <p>Interrupt flag (1 << 2), if set to false, maskable interrupts is ignored, HOWEVER, non-maskable interrupts cannot be ignored</p>
+    <h2>Special Addresses:</h2>
+    <p>Default ip: 0x800</p>
+    <p>Maskable interrupts: 0x803</p>
+    <p>Non-maskable interrupts: 0x805</p>
+</body>
+<script>
+    const COMMAND_NAME = ["HLT","NOP","LDA","LDX","LDY","STA","STX","STY","ADA","ADX","ADY","SUA","SUX","SUY","NANA","NANX","NANY","PUSHA","PUSHX","PUSHY","POPA","POPX","POPY","CMA","CMX","CMY","JMP","JZ","JC","JNZ","JNC","CALL","RET","INT","RETI","CZF","CCF","CIF","SZF","SCF","SIF"];
+    const COMMAND_DESC = [
+        "Halts (stops) the processor",
+        "Does nothing",
+        "Load from memory to the accumulator",
+        "Load from memory to register X",
+        "Load from memory to register Y",
+        "Store to memory from the accumulator",
+        "Store to memory from register X",
+        "Store to memory from register Y",
+        "Makes addition with the accumulator and the accumulator itself",
+        "Makes addition with the accumulator and register X",
+        "Makes addition with the accumulator and register Y",
+        "Makes subtraction with the accumulator and the accumulator itself",
+        "Makes subtraction with the accumulator and register X",
+        "Makes subtraction with the accumulator and register Y",
+        "Makes a NAND operation with the accumulator and the accumulator itself",
+        "Makes a NAND operation with the accumulator and register X",
+        "Makes a NAND operation with the accumulator and register Y",
+        "Pushes a value to stack from the accumulator",
+        "Pushes a value to stack from register X",
+        "Pushes a value to stack from register YC",
+        "Pops a value to stack from the accumulator",
+        "Pops a value to stack from register X",
+        "Pops a value to stack from register Y",
+        "Makes subtraction of the accumulator with the accumulator itself but does not store the result (Compares the accumulator with the accumulator itself)",
+        "Makes subtraction of the accumulator with register X but does not store the result (Compares the accumulator with register X)",
+        "Makes subtraction of the accumulator with register Y but does not store the result  (Compares the accumulator with register Y)",
+        "Read 2 address from memory and jumps to it",
+        "Read 2 address from memory and jumps to it only if the zero flag is set",
+        "Read 2 address from memory and jumps to it only if the carry flag is set",
+        "Read 2 address from memory and jumps to it only if the zero flag is not set",
+        "Read 2 address from memory and jumps to it only if the carry flag is not set",
+        "Read 2 address, pushes the next instruction pointer to stack and jumps to the readed address",
+        "Pops 2 values from address and jumps to it",
+        "Pauses the processor, pushes all registers to stack and call a address",
+        "Pops all registers from stack, return and resumes the processor",
+        "Sets zero flag to false",
+        "Sets carry flag to false",
+        "Sets interrupt flag to false",
+        "Sets zero flag to true",
+        "Sets carry flag to true",
+        "Sets interrupt flag to true"
+    ];
+    const ul = document.querySelector("ul");
+    for(let i=0;i<COMMAND_NAME.length;i++){
+        const op = COMMAND_NAME[i];
+        const li = document.createElement("li");
+        li.innerText = i + " - " + op + " - " + COMMAND_DESC[i];
+        ul.append(li);
+    }
+</script>
+</html>
