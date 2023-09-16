@@ -57,3 +57,12 @@ th{
 #stepTimes{
     width: 220px;
 }
+.code{
+    border: 1px solid #000;
+    font-family: monospace;
+    padding: 5px;
+    background-color: #f0f0f0;
+}
+.warning{
+    color: red;
+}

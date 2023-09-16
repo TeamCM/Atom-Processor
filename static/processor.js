@@ -299,10 +299,6 @@ class Processor extends EventTarget{
     non_maskable_inerrupt_address = 0
 
     registers = new Uint8Array(5);
-    sregisters = {
-        cf: false,
-        zf: false
-    };
     /**
      * The bus which data will be readed/writed
      * @type {Bus}
@@ -339,15 +335,16 @@ class Processor extends EventTarget{
     }
 
     /**
-     * @param {number} f
-     * @returns {number}
+     * @param {number} f Flag
+     * @returns {number} 1-bit number (boolean)
      */
     getFlag(f){
         return this.registers[4] & f;
     }
     /**
-     * @param {number} f
-     * @param {boolean | number} v
+     * @param {number} f Flag
+     * @param {boolean | number} v 1-bit number (boolean)
+     * @returns {void}
      */
     setFlag(f,v){
         if(v)
@@ -397,8 +394,8 @@ class Processor extends EventTarget{
 
     /**
      * Fetch and execute a instruction
-     * @param {bool} noupdate Should emit `update` event
-     * @returns {bool}
+     * @param {boolean} noupdate Should emit `update` event
+     * @returns {boolean} Returns true if executed a instruction, false otherwise
      */
     step(noupdate){
         if(this.halted) return false;
